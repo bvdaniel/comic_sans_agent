@@ -1,51 +1,66 @@
-# Eliza
+# Comic Sans Agent - Eliza Bot Extension
 
-## Edit the character files
+A Twitter bot that detects Comic Sans in images and rewards users with $COMICSANS tokens on Base network.
 
-Open `agent/src/character.ts` to modify the default character. Uncomment and edit.
+## Key Features Added
 
-### Custom characters
+### 1. Comic Sans Detection
+- Added Python script (`src/scripts/comic_sans_detector.py`) for font detection
+- Uses OCR and font comparison to detect Comic Sans in images
+- Added Comic Sans font file (`assets/fonts/comic.ttf`) for reference
+- Integrated with Node.js through `src/utils/detectComicSans.js`
 
-To load custom characters instead:
-- Use `pnpm start --characters="path/to/your/character.json"`
-- Multiple character files can be loaded simultaneously
+### 2. Token Rewards System
+- Added wallet handling functionality (`src/utils/walletHandler.js`)
+- Integrates with Base network for $COMICSANS token transfers
+- Uses ethers.js for blockchain interactions
+- Includes fallback RPC URLs for better reliability
+- Handles gas estimation and transaction timeouts
 
-### Add clients
+### 3. State Management
+- Implemented `pendingWalletRequests` Map to track user interactions
+- Stores user ID, image URL, and claim status
+- Prevents double claims for the same image
+- Cleans up unclaimed requests after one hour
 
-```diff
-- clients: [],
-+ clients: ["twitter", "discord"],
-```
+### 4. Character Configuration
+Added custom character configuration (`characters/comicsans.character.json`):
+- Comic Sans-specific personality
+- Wallet configuration for Base network
+- Token contract details
+- Custom responses for detection results
 
-## Duplicate the .env.example template
+### 5. Twitter Interaction Flow
+1. User tags bot with image
+2. Bot detects Comic Sans
+3. Bot asks for wallet address
+4. User replies to original tweet with wallet
+5. Bot validates and sends tokens
+6. Bot confirms transaction
 
-```bash
-cp .env.example .env
-```
+### 6. Security Features
+- Wallet address validation
+- Transaction timeout handling
+- Rate limiting for Twitter API
+- Error handling for failed transactions
+- Network fallback mechanisms
 
-\* Fill out the .env file with your own values.
+## Environment Variables 
+bash
+BASE_WALLET_PK=your_private_key
+BASE_RPC_URL=https://mainnet.base.org
 
-### Add login credentials and keys to .env
+## Token Contract
+- Network: Base
+- Contract: 0x00Ef6220B7e28E890a5A265D82589e072564Cc57
+- Standard: ERC20
 
-```diff
--DISCORD_APPLICATION_ID=
--DISCORD_API_TOKEN= # Bot token
-+DISCORD_APPLICATION_ID="000000772361146438"
-+DISCORD_API_TOKEN="OTk1MTU1NzcyMzYxMT000000.000000.00000000000000000000000000000000"
-...
--OPENROUTER_API_KEY=
-+OPENROUTER_API_KEY="sk-xx-xx-xxx"
-...
--TWITTER_USERNAME= # Account username
--TWITTER_PASSWORD= # Account password
--TWITTER_EMAIL= # Account email
-+TWITTER_USERNAME="username"
-+TWITTER_PASSWORD="password"
-+TWITTER_EMAIL="your@email.com"
-```
+## Dependencies Added
+- ethers.js for blockchain interactions
+- Python dependencies for font detection
+- OCR libraries for text recognition
 
-## Install dependencies and start your agent
-
-```bash
-pnpm i && pnpm start
-```
+## Performance Optimizations
+- Reduced polling interval for faster responses
+- Added RPC fallbacks for better reliability
+- Optimized image processing
