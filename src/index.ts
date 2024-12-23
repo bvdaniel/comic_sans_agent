@@ -33,6 +33,16 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { character } from "./character.ts";
 import type { DirectClient } from "@ai16z/client-direct";
+import type { Plugin } from '@ai16z/eliza';
+import type { Database as BetterSqlite3Database } from 'better-sqlite3';
+
+interface SqliteDatabase extends BetterSqlite3Database {
+    init(): Promise<void>;
+}
+
+type DatabaseConstructor = {
+    new(filename: string): BetterSqlite3Database;
+} & typeof Database;
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
@@ -155,8 +165,8 @@ function initializeDatabase(dataDir: string) {
   } else {
     const filePath =
       process.env.SQLITE_FILE ?? path.resolve(dataDir, "db.sqlite");
-    // ":memory:";
-    const db = new SqliteDatabaseAdapter(new Database(filePath));
+    const sqliteDb = new (Database as DatabaseConstructor)(filePath);
+    const db = new SqliteDatabaseAdapter(sqliteDb);
     return db;
   }
 }
@@ -206,22 +216,29 @@ export function createAgent(
   cache: ICacheManager,
   token: string
 ) {
+  if (!character.settings) {
+    throw new Error('Character settings are required');
+  }
+
   elizaLogger.success(
     elizaLogger.successesTitle,
     "Creating runtime for character",
     character.name
   );
+
+  const validPlugins: Plugin[] = [
+    bootstrapPlugin,
+    nodePlugin,
+    character.settings.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
+  ].filter((plugin): plugin is Plugin => plugin !== null);
+
   return new AgentRuntime({
     databaseAdapter: db,
     token,
     modelProvider: character.modelProvider,
     evaluators: [],
     character,
-    plugins: [
-      bootstrapPlugin,
-      nodePlugin,
-      character.settings.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
-    ].filter(Boolean),
+    plugins: validPlugins,
     providers: [],
     actions: [],
     services: [],
@@ -231,23 +248,34 @@ export function createAgent(
 }
 
 function intializeFsCache(baseDir: string, character: Character) {
+  if (!character.id) {
+    throw new Error('Character ID is required');
+  }
   const cacheDir = path.resolve(baseDir, character.id, "cache");
-
   const cache = new CacheManager(new FsCacheAdapter(cacheDir));
   return cache;
 }
 
 function intializeDbCache(character: Character, db: IDatabaseCacheAdapter) {
+  if (!character.id) {
+    throw new Error('Character ID is required');
+  }
   const cache = new CacheManager(new DbCacheAdapter(db, character.id));
   return cache;
 }
 
 async function startAgent(character: Character, directClient: DirectClient) {
   try {
-    character.id ??= stringToUuid(character.name);
+    if (!character.id) {
+      character.id = stringToUuid(character.name);
+    }
     character.username ??= character.name;
 
     const token = getTokenForProvider(character.modelProvider, character);
+    if (!token) {
+      throw new Error('Token is required');
+    }
+
     const dataDir = path.join(__dirname, "../data");
 
     if (!fs.existsSync(dataDir)) {
@@ -255,7 +283,6 @@ async function startAgent(character: Character, directClient: DirectClient) {
     }
 
     const db = initializeDatabase(dataDir);
-
     await db.init();
 
     const cache = intializeDbCache(character, db);
@@ -327,7 +354,7 @@ rl.on("SIGINT", () => {
   process.exit(0);
 });
 
-async function handleUserInput(input, agentId) {
+async function handleUserInput(input: string, agentId: string) {
   if (input.toLowerCase() === "exit") {
     rl.close();
     process.exit(0);
@@ -351,8 +378,10 @@ async function handleUserInput(input, agentId) {
     );
 
     const data = await response.json();
-    data.forEach((message) => console.log(`${"Agent"}: ${message.text}`));
+    data.forEach((message: { text: string }) => console.log(`${"Agent"}: ${message.text}`));
   } catch (error) {
     console.error("Error fetching response:", error);
   }
 }
+
+export * from './utils/detectComicSans.js';
