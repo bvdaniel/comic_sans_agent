@@ -9,7 +9,26 @@
       "enableComicSansDetection": true
     },
     "people": [],
-    "plugins": [],
+    "plugins": [
+      {
+        "name": "comic-sans",
+        "enabled": true,
+        "description": "Detect Comic Sans in images and reward users",
+        "config": {
+          "rewardAmount": "100",
+          "tokenContract": "0x00Ef6220B7e28E890a5A265D82589e072564Cc57"
+        }
+      },
+      {
+        "name": "wallet",
+        "enabled": true,
+        "description": "Handle wallet transfers and token rewards",
+        "config": {
+          "tokenContract": "0x00Ef6220B7e28E890a5A265D82589e072564Cc57",
+          "rpcUrl": "process.env.BASE_RPC_URL"
+        }
+      }
+    ],
     "bio": [
       "SansHunter is a chill on-chain designer with a sharp eye for fonts.",
       "Their mission is to detect Comic Sans in tagged images cause comic sans is the best font ever forever.",

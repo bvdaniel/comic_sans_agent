@@ -35,6 +35,8 @@ import { character } from "./character.ts";
 import type { DirectClient } from "@ai16z/client-direct";
 import type { Plugin } from '@ai16z/eliza';
 import type { Database as BetterSqlite3Database } from 'better-sqlite3';
+import { walletPlugin } from './plugins/wallet/index.js';
+import { comicSansPlugin } from './plugins/comic-sans/index.js';
 
 interface SqliteDatabase extends BetterSqlite3Database {
     init(): Promise<void>;
@@ -193,8 +195,8 @@ export async function initializeClients(
   }
 
   if (clientTypes.includes("twitter")) {
-    const twitterClients = await TwitterClientInterface.start(runtime);
-    clients.push(twitterClients);
+    const twitterManager = await TwitterClientInterface.start(runtime);
+    clients.push(twitterManager);
   }
 
   if (character.plugins?.length > 0) {
@@ -226,10 +228,12 @@ export function createAgent(
     character.name
   );
 
-  const validPlugins: Plugin[] = [
+  const plugins = [
     bootstrapPlugin,
     nodePlugin,
-    character.settings.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
+    comicSansPlugin,
+    walletPlugin,
+    character.settings?.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
   ].filter((plugin): plugin is Plugin => plugin !== null);
 
   return new AgentRuntime({
@@ -238,7 +242,7 @@ export function createAgent(
     modelProvider: character.modelProvider,
     evaluators: [],
     character,
-    plugins: validPlugins,
+    plugins,
     providers: [],
     actions: [],
     services: [],

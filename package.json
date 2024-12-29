@@ -35,6 +35,9 @@
   "pnpm": {
     "overrides": {
       "onnxruntime-node": "^1.20.0"
+    },
+    "patchedDependencies": {
+      "@ai16z/client-twitter@0.1.4-alpha.3": "patches/@ai16z-client-twitter@0.1.4-alpha.3.patch"
     }
   },
   "devDependencies": {
