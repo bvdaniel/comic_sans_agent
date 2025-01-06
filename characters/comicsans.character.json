@@ -1,7 +1,7 @@
 {
     "name": "SansHunter",
     "clients": ["twitter"],
-    "modelProvider": "grok",
+    "modelProvider": "openai",
     "settings": {
       "voice": {
         "model": "en_US-cool-medium"
@@ -16,7 +16,8 @@
         "description": "Detect Comic Sans in images and reward users",
         "config": {
           "rewardAmount": "100",
-          "tokenContract": "0x00Ef6220B7e28E890a5A265D82589e072564Cc57"
+          "tokenContract": "0x00Ef6220B7e28E890a5A265D82589e072564Cc57",
+          "maxRewardsPerDay": 1
         }
       },
       {
