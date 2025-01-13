@@ -1,12 +1,9 @@
-import { Plugin } from "@ai16z/eliza";
 import { walletAction } from "./action.js";
-
-export const walletPlugin: Plugin = {
+export const walletPlugin = {
     name: "wallet",
     description: "Wallet operations and token management",
     actions: [walletAction],
     evaluators: [],
     providers: []
 };
-
-export default walletPlugin; 
+export default walletPlugin;

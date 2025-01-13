@@ -1,11 +1,13 @@
+import net from "net";
 import { PostgresDatabaseAdapter } from "@ai16z/adapter-postgres";
+import { createNodePlugin } from "@ai16z/plugin-node";
 import { SqliteDatabaseAdapter } from "@ai16z/adapter-sqlite";
 import { DirectClientInterface } from "@ai16z/client-direct";
 import { DiscordClientInterface } from "@ai16z/client-discord";
 import { AutoClientInterface } from "@ai16z/client-auto";
 import { TelegramClientInterface } from "@ai16z/client-telegram";
 import { TwitterClientInterface } from "@ai16z/client-twitter";
-import {
+import {    
   DbCacheAdapter,
   defaultCharacter,
   FsCacheAdapter,
@@ -24,19 +26,19 @@ import {
 } from "@ai16z/eliza";
 import { bootstrapPlugin } from "@ai16z/plugin-bootstrap";
 import { solanaPlugin } from "@ai16z/plugin-solana";
-import { nodePlugin } from "@ai16z/plugin-node";
 import Database from "better-sqlite3";
 import fs from "fs";
 import readline from "readline";
 import yargs from "yargs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { character } from "./character.ts";
-import type { DirectClient } from "@ai16z/client-direct";
+import { character } from "./character.js";
+import { DirectClient } from "@ai16z/client-direct";
 import type { Plugin } from '@ai16z/eliza';
 import type { Database as BetterSqlite3Database } from 'better-sqlite3';
 import { walletPlugin } from './plugins/wallet/index.js';
 import { comicSansPlugin } from './plugins/comic-sans/index.js';
+import { startChat } from "./chats/index.js";
 
 interface SqliteDatabase extends BetterSqlite3Database {
     init(): Promise<void>;
@@ -173,6 +175,26 @@ function initializeDatabase(dataDir: string) {
   }
 }
 
+async function validateTwitterConfigFlex(runtime: IAgentRuntime) {
+  const hasCookies = runtime.getSetting("TWITTER_COOKIES");
+  console.log("hasCookies", hasCookies);
+  if (hasCookies) {
+    return true; // Si hay cookies, no validamos las otras credenciales
+  }
+
+  // Solo validamos credenciales si no hay cookies
+  const username = runtime.getSetting("TWITTER_USERNAME");
+  const password = runtime.getSetting("TWITTER_PASSWORD");
+  const email = runtime.getSetting("TWITTER_EMAIL");
+
+  if (!username || !password || !email) {
+    throw new Error("When not using cookies, Twitter credentials are required");
+  }
+
+  return true;
+}
+
+
 export async function initializeClients(
   character: Character,
   runtime: IAgentRuntime
@@ -195,6 +217,7 @@ export async function initializeClients(
   }
 
   if (clientTypes.includes("twitter")) {
+    await validateTwitterConfigFlex(runtime);
     const twitterManager = await TwitterClientInterface.start(runtime);
     clients.push(twitterManager);
   }
@@ -230,7 +253,7 @@ export function createAgent(
 
   const plugins = [
     bootstrapPlugin,
-    nodePlugin,
+    createNodePlugin(),
     comicSansPlugin,
     walletPlugin,
     character.settings?.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
@@ -309,13 +332,33 @@ async function startAgent(character: Character, directClient: DirectClient) {
   }
 }
 
+const checkPortAvailable = (port: number): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        resolve(false);
+      }
+    });
+
+    server.once("listening", () => {
+      server.close();
+      resolve(true);
+    });
+
+    server.listen(port);
+  });
+};
+
 const startAgents = async () => {
-  const directClient = await DirectClientInterface.start();
+  const directClient = new DirectClient();
+  let serverPort = parseInt(settings.SERVER_PORT || "3000");
   const args = parseArguments();
 
   let charactersArg = args.characters || args.character;
-
   let characters = [character];
+
   console.log("charactersArg", charactersArg);
   if (charactersArg) {
     characters = await loadCharacters(charactersArg);
@@ -329,17 +372,25 @@ const startAgents = async () => {
     elizaLogger.error("Error starting agents:", error);
   }
 
-  function chat() {
-    const agentId = characters[0].name ?? "Agent";
-    rl.question("You: ", async (input) => {
-      await handleUserInput(input, agentId);
-      if (input.toLowerCase() !== "exit") {
-        chat(); // Loop back to ask another question
-      }
-    });
+  while (!(await checkPortAvailable(serverPort))) {
+    elizaLogger.warn(`Port ${serverPort} is in use, trying ${serverPort + 1}`);
+    serverPort++;
+  }
+
+  // upload some agent functionality into directClient
+  directClient.startAgent = async (character: Character) => {
+    // wrap it so we don't have to inject directClient later
+    return startAgent(character, directClient);
+  };
+
+  directClient.start(serverPort);
+
+  if (serverPort !== parseInt(settings.SERVER_PORT || "3000")) {
+    elizaLogger.log(`Server started on alternate port ${serverPort}`);
   }
 
   elizaLogger.log("Chat started. Type 'exit' to quit.");
+  const chat = startChat(characters);
   chat();
 };
 

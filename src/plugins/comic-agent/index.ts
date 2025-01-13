@@ -4,7 +4,7 @@ import {
     State,
     ActionExample,
   } from "@ai16z/eliza";
-  import { detectComicSans } from "../../utils/detectComicSans"; // Adjust the import path as necessary
+  import { detectComicSans } from "../../utils/detectComicSans.js"; // Adjust the import path as necessary
   //import { handleApiError } from "../../common/utils.ts"; // Adjust the import path as necessary
   import { handleWalletReply } from '../../utils/walletHandler.js';
   
@@ -30,6 +30,7 @@ import {
       {
         name: "DETECT_COMIC_SANS",
         description: "Detect Comic Sans in an image",
+        similes: ["detect", "check", "analyze"], 
         examples: [
           [
             {
@@ -58,6 +59,7 @@ import {
       {
         name: "WALLET_ACTION",
         description: "Perform actions related to the wallet",
+        similes: ["wallet", "balance", "funds"],
         examples: [
           [
             {

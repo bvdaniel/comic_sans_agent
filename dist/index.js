@@ -1,6 +1,7 @@
+import net from "net";
 import { PostgresDatabaseAdapter } from "@ai16z/adapter-postgres";
+import { createNodePlugin } from "@ai16z/plugin-node";
 import { SqliteDatabaseAdapter } from "@ai16z/adapter-sqlite";
-import { DirectClientInterface } from "@ai16z/client-direct";
 import { DiscordClientInterface } from "@ai16z/client-discord";
 import { AutoClientInterface } from "@ai16z/client-auto";
 import { TelegramClientInterface } from "@ai16z/client-telegram";
@@ -8,14 +9,17 @@ import { TwitterClientInterface } from "@ai16z/client-twitter";
 import { DbCacheAdapter, defaultCharacter, FsCacheAdapter, stringToUuid, AgentRuntime, CacheManager, ModelProviderName, elizaLogger, settings, validateCharacterConfig, } from "@ai16z/eliza";
 import { bootstrapPlugin } from "@ai16z/plugin-bootstrap";
 import { solanaPlugin } from "@ai16z/plugin-solana";
-import { nodePlugin } from "@ai16z/plugin-node";
 import Database from "better-sqlite3";
 import fs from "fs";
 import readline from "readline";
 import yargs from "yargs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { character } from "./character.ts";
+import { character } from "./character.js";
+import { DirectClient } from "@ai16z/client-direct";
+import { walletPlugin } from './plugins/wallet/index.js';
+import { comicSansPlugin } from './plugins/comic-sans/index.js';
+import { startChat } from "./chats/index.js";
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
 export const wait = (minTime = 1000, maxTime = 3000) => {
@@ -107,10 +111,25 @@ function initializeDatabase(dataDir) {
     }
     else {
         const filePath = process.env.SQLITE_FILE ?? path.resolve(dataDir, "db.sqlite");
-        // ":memory:";
-        const db = new SqliteDatabaseAdapter(new Database(filePath));
+        const sqliteDb = new Database(filePath);
+        const db = new SqliteDatabaseAdapter(sqliteDb);
         return db;
     }
+}
+async function validateTwitterConfigFlex(runtime) {
+    const hasCookies = runtime.getSetting("TWITTER_COOKIES");
+    console.log("hasCookies", hasCookies);
+    if (hasCookies) {
+        return true; // Si hay cookies, no validamos las otras credenciales
+    }
+    // Solo validamos credenciales si no hay cookies
+    const username = runtime.getSetting("TWITTER_USERNAME");
+    const password = runtime.getSetting("TWITTER_PASSWORD");
+    const email = runtime.getSetting("TWITTER_EMAIL");
+    if (!username || !password || !email) {
+        throw new Error("When not using cookies, Twitter credentials are required");
+    }
+    return true;
 }
 export async function initializeClients(character, runtime) {
     const clients = [];
@@ -129,8 +148,9 @@ export async function initializeClients(character, runtime) {
             clients.push(telegramClient);
     }
     if (clientTypes.includes("twitter")) {
-        const twitterClients = await TwitterClientInterface.start(runtime);
-        clients.push(twitterClients);
+        await validateTwitterConfigFlex(runtime);
+        const twitterManager = await TwitterClientInterface.start(runtime);
+        clients.push(twitterManager);
     }
     if (character.plugins?.length > 0) {
         for (const plugin of character.plugins) {
@@ -144,18 +164,24 @@ export async function initializeClients(character, runtime) {
     return clients;
 }
 export function createAgent(character, db, cache, token) {
+    if (!character.settings) {
+        throw new Error('Character settings are required');
+    }
     elizaLogger.success(elizaLogger.successesTitle, "Creating runtime for character", character.name);
+    const plugins = [
+        bootstrapPlugin,
+        createNodePlugin(),
+        comicSansPlugin,
+        walletPlugin,
+        character.settings?.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
+    ].filter((plugin) => plugin !== null);
     return new AgentRuntime({
         databaseAdapter: db,
         token,
         modelProvider: character.modelProvider,
         evaluators: [],
         character,
-        plugins: [
-            bootstrapPlugin,
-            nodePlugin,
-            character.settings.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
-        ].filter(Boolean),
+        plugins,
         providers: [],
         actions: [],
         services: [],
@@ -164,19 +190,30 @@ export function createAgent(character, db, cache, token) {
     });
 }
 function intializeFsCache(baseDir, character) {
+    if (!character.id) {
+        throw new Error('Character ID is required');
+    }
     const cacheDir = path.resolve(baseDir, character.id, "cache");
     const cache = new CacheManager(new FsCacheAdapter(cacheDir));
     return cache;
 }
 function intializeDbCache(character, db) {
+    if (!character.id) {
+        throw new Error('Character ID is required');
+    }
     const cache = new CacheManager(new DbCacheAdapter(db, character.id));
     return cache;
 }
 async function startAgent(character, directClient) {
     try {
-        character.id ?? (character.id = stringToUuid(character.name));
+        if (!character.id) {
+            character.id = stringToUuid(character.name);
+        }
         character.username ?? (character.username = character.name);
         const token = getTokenForProvider(character.modelProvider, character);
+        if (!token) {
+            throw new Error('Token is required');
+        }
         const dataDir = path.join(__dirname, "../data");
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
@@ -196,8 +233,24 @@ async function startAgent(character, directClient) {
         throw error;
     }
 }
+const checkPortAvailable = (port) => {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+        server.once("error", (err) => {
+            if (err.code === "EADDRINUSE") {
+                resolve(false);
+            }
+        });
+        server.once("listening", () => {
+            server.close();
+            resolve(true);
+        });
+        server.listen(port);
+    });
+};
 const startAgents = async () => {
-    const directClient = await DirectClientInterface.start();
+    const directClient = new DirectClient();
+    let serverPort = parseInt(settings.SERVER_PORT || "3000");
     const args = parseArguments();
     let charactersArg = args.characters || args.character;
     let characters = [character];
@@ -214,16 +267,21 @@ const startAgents = async () => {
     catch (error) {
         elizaLogger.error("Error starting agents:", error);
     }
-    function chat() {
-        const agentId = characters[0].name ?? "Agent";
-        rl.question("You: ", async (input) => {
-            await handleUserInput(input, agentId);
-            if (input.toLowerCase() !== "exit") {
-                chat(); // Loop back to ask another question
-            }
-        });
+    while (!(await checkPortAvailable(serverPort))) {
+        elizaLogger.warn(`Port ${serverPort} is in use, trying ${serverPort + 1}`);
+        serverPort++;
+    }
+    // upload some agent functionality into directClient
+    directClient.startAgent = async (character) => {
+        // wrap it so we don't have to inject directClient later
+        return startAgent(character, directClient);
+    };
+    directClient.start(serverPort);
+    if (serverPort !== parseInt(settings.SERVER_PORT || "3000")) {
+        elizaLogger.log(`Server started on alternate port ${serverPort}`);
     }
     elizaLogger.log("Chat started. Type 'exit' to quit.");
+    const chat = startChat(characters);
     chat();
 };
 startAgents().catch((error) => {
