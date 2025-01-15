@@ -1,7 +1,20 @@
+# Dependencies
+node_modules/
+venv/
+
+# Environment variables
+.env
+
+# Database
+db.sqlite
+
+# TypeScript
 *.ts
 !index.ts
 !character.ts
-.env
-node_modules
 
-db.sqlite
+# Build output
+dist/
+
+# Cache
+content_cache/
