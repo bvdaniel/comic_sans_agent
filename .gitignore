@@ -8,11 +8,6 @@ venv/
 # Database
 db.sqlite
 
-# TypeScript
-*.ts
-!index.ts
-!character.ts
-
 # Build output
 dist/
 
