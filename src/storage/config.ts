@@ -5,7 +5,7 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const STORAGE_DIR = path.join(__dirname, '../../storage');
+export const STORAGE_DIR = path.join(__dirname, '../../data');
 export const DB_DIR = path.join(STORAGE_DIR, 'db');
 
 // Asegurar que los directorios existan
