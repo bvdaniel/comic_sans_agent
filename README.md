@@ -2,65 +2,112 @@
 
 A Twitter bot that detects Comic Sans in images and rewards users with $COMICSANS tokens on Base network.
 
-## Key Features Added
+## Architecture Overviewmermaid
+graph TD
+A[Twitter User] -->|Tags Bot with Image| B[Eliza Bot]
+B --> C{Comic Sans Plugin}
+C -->|Detect Action| D[Comic Sans Detector]
+D -->|Found Comic Sans| E[Wallet Plugin]
+D -->|No Comic Sans| F[Response Generator]
+E -->|Request Wallet| G[User Replies with Wallet]
+G -->|Process Wallet| H[Token Transfer]
+H -->|Success| I[Confirmation Message]
+H -->|Failure| J[Error Handler]
+
+
+## Plugin Architecture
+
+### 1. Comic Sans Plugin (`src/plugins/comic-sans/`)
+- Main detection and reward logic
+- Components:
+  - `index.ts`: Plugin registration
+  - `action.ts`: Comic Sans detection action
+  - `messages.ts`: Response generation
+
+### 2. Wallet Plugin (`src/plugins/wallet/`)
+- Handles wallet operations and token transfers
+- Components:
+  - `index.ts`: Plugin registration
+  - `action.ts`: Wallet processing action
+
+### 3. Comic Agent Plugin (`src/plugins/comic-agent/`)
+- High-level coordination between plugins
+- Manages state and user interactions
+
+## Key Features
 
 ### 1. Comic Sans Detection
-- Added Python script (`src/scripts/comic_sans_detector.py`) for font detection
-- Uses OCR and font comparison to detect Comic Sans in images
-- Added Comic Sans font file (`assets/fonts/comic.ttf`) for reference
-- Integrated with Node.js through `src/utils/detectComicSans.js`
+- Python-based font detection script
+- OCR and font comparison
+- Integrated with Node.js through utility functions
 
 ### 2. Token Rewards System
-- Added wallet handling functionality (`src/utils/walletHandler.js`)
-- Integrates with Base network for $COMICSANS token transfers
-- Uses ethers.js for blockchain interactions
-- Includes fallback RPC URLs for better reliability
-- Handles gas estimation and transaction timeouts
+- Base network integration for $COMICSANS tokens
+- Automated wallet validation and transfers
+- Gas estimation and transaction management
 
 ### 3. State Management
-- Implemented `pendingWalletRequests` Map to track user interactions
-- Stores user ID, image URL, and claim status
-- Prevents double claims for the same image
-- Cleans up unclaimed requests after one hour
+- User interaction tracking
+- Double-claim prevention
+- Automatic cleanup of unclaimed requests
 
-### 4. Character Configuration
-Added custom character configuration (`characters/comicsans.character.json`):
-- Comic Sans-specific personality
-- Wallet configuration for Base network
-- Token contract details
-- Custom responses for detection results
+## Setup
 
-### 5. Twitter Interaction Flow
-1. User tags bot with image
-2. Bot detects Comic Sans
-3. Bot asks for wallet address
-4. User replies to original tweet with wallet
-5. Bot validates and sends tokens
-6. Bot confirms transaction
+### Prerequisites
+- Python 3.x
+- Node.js
+- Tesseract OCR
 
-### 6. Security Features
-- Wallet address validation
-- Transaction timeout handling
-- Rate limiting for Twitter API
-- Error handling for failed transactions
-- Network fallback mechanisms
-
-## Environment Variables 
+### Installation
 bash
+Clone the repository
+git clone <repository-url>
+Run the setup
+make all
+The Makefile handles:
+- System dependency checks
+- Python virtual environment setup
+- Node.js dependencies
+- Twitter client patching
+- Environment configuration
+
+## Environment Variables
+Required environment variables:
+bash
+Twitter Configuration
+TWITTER_COOKIES=[{"key":"auth_token","value":"YOUR_AUTH_TOKEN"},{"key":"ct0","value":"YOUR_CT0"}]
+TWITTER_USERNAME=your_bot_username
+TWITTER_PASSWORD=mock_password
+TWITTER_EMAIL=mock@example.com
+Base Network Configuration
 BASE_WALLET_PK=your_private_key
 BASE_RPC_URL=https://mainnet.base.org
-
 ## Token Contract
 - Network: Base
 - Contract: 0x00Ef6220B7e28E890a5A265D82589e072564Cc57
 - Standard: ERC20
 
-## Dependencies Added
-- ethers.js for blockchain interactions
-- Python dependencies for font detection
-- OCR libraries for text recognition
+## Development Command
+bash
+Full setup
+make all
+Check dependencies
+make check-deps
+Clean installation
+make clean
+Show help
+make help
+
 
 ## Performance Optimizations
-- Reduced polling interval for faster responses
-- Added RPC fallbacks for better reliability
-- Optimized image processing
+- Optimized image processing pipeline
+- RPC fallback mechanisms
+- Rate limiting implementation
+- Efficient state management
+
+## Security Features
+- Wallet address validation
+- Transaction timeout handling
+- Rate limiting for API calls
+- Error handling for failed transactions
+
