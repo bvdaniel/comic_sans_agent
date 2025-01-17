@@ -2,18 +2,20 @@
 
 A Twitter bot that detects Comic Sans in images and rewards users with $COMICSANS tokens on Base network.
 
-## Architecture Overviewmermaid
-graph TD
-A[Twitter User] -->|Tags Bot with Image| B[Eliza Bot]
-B --> C{Comic Sans Plugin}
-C -->|Detect Action| D[Comic Sans Detector]
-D -->|Found Comic Sans| E[Wallet Plugin]
-D -->|No Comic Sans| F[Response Generator]
-E -->|Request Wallet| G[User Replies with Wallet]
-G -->|Process Wallet| H[Token Transfer]
-H -->|Success| I[Confirmation Message]
-H -->|Failure| J[Error Handler]
+## Architecture Overview
 
+```mermaid
+graph TD
+    A[Twitter User] -->|Tags Bot with Image| B[Eliza Bot]
+    B --> C{Comic Sans Plugin}
+    C -->|Detect Action| D[Comic Sans Detector]
+    D -->|Found Comic Sans| E[Wallet Plugin]
+    D -->|No Comic Sans| F[Response Generator]
+    E -->|Request Wallet| G[User Replies with Wallet]
+    G -->|Process Wallet| H[Token Transfer]
+    H -->|Success| I[Confirmation Message]
+    H -->|Failure| J[Error Handler]
+```
 
 ## Plugin Architecture
 
@@ -59,11 +61,14 @@ H -->|Failure| J[Error Handler]
 - Tesseract OCR
 
 ### Installation
-bash
-Clone the repository
+```bash
+# Clone the repository
 git clone <repository-url>
-Run the setup
+
+# Run the setup
 make all
+```
+
 The Makefile handles:
 - System dependency checks
 - Python virtual environment setup
@@ -73,31 +78,37 @@ The Makefile handles:
 
 ## Environment Variables
 Required environment variables:
-bash
-Twitter Configuration
+```bash
+# Twitter Configuration
 TWITTER_COOKIES=[{"key":"auth_token","value":"YOUR_AUTH_TOKEN"},{"key":"ct0","value":"YOUR_CT0"}]
 TWITTER_USERNAME=your_bot_username
 TWITTER_PASSWORD=mock_password
 TWITTER_EMAIL=mock@example.com
-Base Network Configuration
+
+# Base Network Configuration
 BASE_WALLET_PK=your_private_key
 BASE_RPC_URL=https://mainnet.base.org
+```
+
 ## Token Contract
 - Network: Base
 - Contract: 0x00Ef6220B7e28E890a5A265D82589e072564Cc57
 - Standard: ERC20
 
-## Development Command
-bash
-Full setup
+## Development Commands
+```bash
+# Full setup
 make all
-Check dependencies
-make check-deps
-Clean installation
-make clean
-Show help
-make help
 
+# Check dependencies
+make check-deps
+
+# Clean installation
+make clean
+
+# Show help
+make help
+```
 
 ## Performance Optimizations
 - Optimized image processing pipeline
@@ -110,4 +121,3 @@ make help
 - Transaction timeout handling
 - Rate limiting for API calls
 - Error handling for failed transactions
-
