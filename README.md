@@ -80,7 +80,8 @@ The Makefile handles:
 Required environment variables:
 ```bash
 # Twitter Configuration
-TWITTER_COOKIES=[{"key":"auth_token","value":"YOUR_AUTH_TOKEN"},{"key":"ct0","value":"YOUR_CT0"}]
+TWITTER_COOKIES=[{"key":"auth_token","value":"YOUR_AUTH_TOKEN","domain":".twitter.com","path":"/"},{"key":"ct0","value":"YOUR_CT0","domain":".twitter.com","path":"/"}]
+
 TWITTER_USERNAME=your_bot_username
 TWITTER_PASSWORD=mock_password
 TWITTER_EMAIL=mock@example.com
