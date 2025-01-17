@@ -1204,7 +1204,7 @@ var TwitterInteractionClient = class {
             IMPORTANT: Your response MUST be formatted as a JSON block like this:
             \`\`\`json
             { 
-              "user": "${runtime.character.name}",
+              "user": "${this.runtime.character.name}",
               "text": "your response here (example: 'Got your image! Let me check for Comic Sans... I'll get back to you in a moment!')",
               "action": "DETECT_COMIC_SANS"
             }
