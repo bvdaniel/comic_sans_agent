@@ -39,6 +39,7 @@ import type { Database as BetterSqlite3Database } from 'better-sqlite3';
 import { walletPlugin } from './plugins/wallet/index.js';
 import { comicSansPlugin } from './plugins/comic-sans/index.js';
 import { startChat } from "./chats/index.js";
+import { comicSans } from "./storage/comic-sans.js";
 
 interface SqliteDatabase extends BetterSqlite3Database {
     init(): Promise<void>;
@@ -161,6 +162,8 @@ export function getTokenForProvider(
 }
 
 function initializeDatabase(dataDir: string) {
+  
+  comicSans.init();
   if (process.env.POSTGRES_URL) {
     const db = new PostgresDatabaseAdapter({
       connectionString: process.env.POSTGRES_URL,

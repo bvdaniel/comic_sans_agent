@@ -18,23 +18,51 @@ const openai = new OpenAI({
     }
 });
 
-async function llamaVisionCheck(imageUrl) {
+async function llamaVisionCheck(imageUrl, pythonAnalysis) {
     try {
         elizaLogger.log("🦙 Starting Llama Vision analysis for image:", imageUrl);
         
         const completion = await openai.chat.completions.create({
-            model: "meta-llama/llama-3.2-11b-vision-instruct",
+            model: "amazon/nova-lite-v1",
             messages: [
                 {
                     role: "system",
-                    content: "You are a typography expert specialized in detecting Comic Sans MS font. Analyze images carefully for any text using Comic Sans."
+                    content: `You are a typography expert specialized in detecting Comic Sans MS font in any context.
+                                You can identify Comic Sans in:
+                                - Digital text
+                                - Printed materials
+                                - T-shirts and clothing
+                                - Graffiti or street art
+                                - Signs and banners
+                                - Bold, italic, or any other style variation
+                                - Different sizes and colors
+                                - Partial or modified versions
+
+                                You will analyze both the image and the results from an automated font detection system.
+                                Provide your final analysis considering both sources of information.
+
+                                Respond ONLY with a JSON object using this exact structure:
+                                {
+                                    "is_comic_sans": boolean,
+                                    "confidence": number (0-100),
+                                    "locations": array of strings (where Comic Sans appears),
+                                    "variations": array of strings (bold, italic, etc.),
+                                    "text_samples": array of strings (examples of text in Comic Sans),
+                                    "notes": string (including analysis of why you agree/disagree with the automated detection),
+                                    "final_verdict": string (brief explanation of your conclusion)
+                                }`
                 },
                 {
                     role: "user",
                     content: [
                         {
                             type: "text",
-                            text: "Analyze this image and tell me if it contains Comic Sans MS font. Be specific about what text appears to be in Comic Sans."
+                            text: `Analyze this image for Comic Sans MS font presence.
+                            
+The automated detection system returned these results:
+${JSON.stringify(pythonAnalysis, null, 2)}
+
+Consider both your visual analysis and these automated results to make your final determination.`
                         },
                         {
                             type: "image_url",
@@ -42,11 +70,29 @@ async function llamaVisionCheck(imageUrl) {
                         }
                     ]
                 }
-            ]
+            ],
+            response_format: { type: "json_object" }
         });
 
         elizaLogger.log("🦙 Llama Vision analysis complete:", completion.choices[0].message);
-        return completion.choices[0].message;
+        // Extraer el JSON del contenido, sea markdown o no
+        const content = completion.choices[0].message.content;
+        let jsonString = content;
+
+        // Si parece ser markdown (contiene ```), extraer el contenido
+        if (content.includes('```')) {
+            // Manejar tanto ```json como ``` a secas
+            const match = content.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+            if (match) {
+                jsonString = match[1].trim();
+            }
+        }
+        
+        elizaLogger.log("🦙 Cleaned content for parsing:", jsonString);
+        
+        // Parseamos el content limpio
+        const result = JSON.parse(jsonString);
+        return result;
     } catch (error) {
         elizaLogger.error("❌ Error in Llama Vision analysis:", error);
         return null;
@@ -62,15 +108,15 @@ export const detectComicSans = async (imageUrl) => {
         const command = `${pythonPath} ${process.cwd()}/src/scripts/comic_sans_detector.py "${imageUrl}" "${fontPath}"`;
         elizaLogger.log("🚀 Executing Python command:", command);
 
-        const result = execSync(command, {
+        const pythonOutput = execSync(command, {
             encoding: "utf-8",
             stdio: ['pipe', 'pipe', 'pipe']
         });
 
-        elizaLogger.log("🔄 Raw Python output:", result);
-
+        elizaLogger.log("🔄 Raw Python output:", pythonOutput);
+        
         try {
-            const parsedResult = JSON.parse(result);
+            const parsedResult = JSON.parse(pythonOutput);
             
             // Log all status messages
             if (parsedResult.messages) {
@@ -79,62 +125,32 @@ export const detectComicSans = async (imageUrl) => {
                 });
             }
 
-            const pythonDetection = parsedResult.result || {
-                is_comic_sans: false,
-                confidence: 0
-            };
-
-            // Si la confianza es menor a 40%, retornamos resultado negativo
-            if (!pythonDetection.confidence || pythonDetection.confidence < 40) {
-                elizaLogger.log("📉 Confidence too low, skipping Llama Vision check");
-                return {
-                    is_comic_sans: false,
-                    confidence: pythonDetection.confidence || 0,
-                    analysis: "No Comic Sans detected with sufficient confidence.",
-                    python_details: parsedResult,
-                    llm_analysis: null
-                };
-            }
-
-            // Si la confianza es mayor a 40%, confirmamos con Llama Vision
-            elizaLogger.log("📈 Confidence sufficient, proceeding with Llama Vision check");
-            const llamaResult = await llamaVisionCheck(imageUrl);
+            // Llamar a Llama Vision con los resultados del análisis Python
+            const llamaResult = await llamaVisionCheck(imageUrl, parsedResult);
 
             if (!llamaResult) {
                 // Si falla Llama Vision, usamos solo el resultado de Python
                 return {
-                    is_comic_sans: pythonDetection.is_comic_sans,
-                    confidence: pythonDetection.confidence,
-                    analysis: "Detection based only on image analysis.",
-                    python_details: parsedResult,
-                    llm_analysis: null
+                    is_comic_sans: parsedResult.result?.is_comic_sans || false,
+                    confidence: parsedResult.result?.confidence || 0,
+                    locations: [],
+                    variations: [],
+                    text_samples: [],
+                    notes: "Detection based only on automated analysis.",
+                    final_verdict: "Analysis based on automated detection only.",
+                    python_details: parsedResult
                 };
             }
 
-            // Análisis combinado
-            const llmText = llamaResult.content;
-            const isComicSans = pythonDetection.is_comic_sans && 
-                              /comic\s*sans/i.test(llmText.toLowerCase());
-            
-            // Promediamos la confianza si ambos detectaron Comic Sans
-            const finalConfidence = isComicSans ? 
-                (pythonDetection.confidence + 90) / 2 : 
-                pythonDetection.confidence;
-
-            const result = {
-                is_comic_sans: isComicSans,
-                confidence: finalConfidence,
-                analysis: llmText,
-                python_details: parsedResult,
-                llm_analysis: llamaResult
+            // Retornamos el análisis completo del LLM que ya incluye la consideración del análisis Python
+            return {
+                ...llamaResult,  // Esto ya tiene la estructura correcta del JSON que devuelve llamaVisionCheck
+                python_details: parsedResult
             };
-
-            elizaLogger.log("✨ Final detection result:", result);
-            return result;
 
         } catch (parseError) {
             elizaLogger.error("❌ Error parsing Python output:", parseError);
-            elizaLogger.error("📜 Raw output that failed to parse:", result);
+            elizaLogger.error("📜 Raw output that failed to parse:", pythonOutput);
             throw parseError;
         }
     } catch (error) {
